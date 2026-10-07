@@ -1,10 +1,11 @@
 const OpenAI = require('openai');
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: 'https://api.groq.com/openai/v1'
 });
 
-exports.generateBotResponse = async (bot, visitorMessage, faqs, ragContext = [], history = []) => {
+exports.generateBotResponse = async (bot, visitorMessage, faqs, ragContext = [], history = [], visitorMetadata = null) => {
   try {
 
     // 1. Check if an FAQ matches directly
@@ -27,10 +28,14 @@ exports.generateBotResponse = async (bot, visitorMessage, faqs, ragContext = [],
         ? JSON.stringify(faqs)
         : "No document content provided.";
 
+    const visitorInfo = (visitorMetadata?.name && visitorMetadata.name !== 'Guest')
+      ? `\nVisitor Name: ${visitorMetadata.name}${visitorMetadata.email ? ` (${visitorMetadata.email})` : ''}`
+      : '';
+
     const systemPrompt = `
           ${basePrompt}
 
-Use only one short opening greeting line or one short closing greeting line when needed.
+Use only one short opening greeting line or one short closing greeting line when needed.${visitorInfo}
 
 APPROVED DOCUMENT CONTENT:
 ${contextDocs}
@@ -39,7 +44,8 @@ ${contextDocs}
     //console.log("System Prompt:", systemPrompt);
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      //model: "gpt-4o-mini",
+      model: 'openai/gpt-oss-120b',
       messages: [
         { role: "system", content: systemPrompt },
         ...history,
@@ -65,7 +71,7 @@ exports.generateChatTitle = async (botId, firstMessage) => {
   try {
     const prompt = `Generate a short title (maximum 5 to 7 words) for a chat conversation that starts with the following message:\n\n"${firstMessage}"\n\nTitle clearly:`;
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "openai/gpt-oss-120b",
       messages: [{ role: "user", content: prompt }]
     });
     return completion.choices[0].message.content.replace(/["']/g, "").trim();

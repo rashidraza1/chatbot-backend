@@ -4,18 +4,22 @@ const { searchRelevantChunks } = require('../services/pdfService');
 
 exports.processChat = async (req, res) => {
   try {
-    const { bot_id, conversation_id, user_id, content } = req.body;
+    const { bot_id, conversation_id, user_id, content, visitor_name, visitor_email, name, email } = req.body;
+    const vName = (visitor_name || name || '').trim();
+    const vEmail = (visitor_email || email || '').trim();
     let conversation;
 
     if (conversation_id) {
-      conversation = await Conversation.findByPk(conversation_id, { include: [Bot] });
+      conversation = await Conversation.findByPk(conversation_id, { include: [Bot, Visitor] });
     }
 
     if (!conversation) {
-      // Create new conversation
+      // Create new conversation with visitor information
       const visitor = await Visitor.create({
-        name: 'Guest',
-        last_page_url: req.headers.referer || null
+        name: vName || 'Guest',
+        email: vEmail || null,
+        last_page_url: req.headers.referer || null,
+        last_seen: new Date()
       });
 
       // Generate title
@@ -28,9 +32,20 @@ exports.processChat = async (req, res) => {
         title,
         status: 'active'
       });
-      // Need to re-fetch with Bot
-      conversation = await Conversation.findByPk(conversation.id, { include: [Bot] });
+      // Need to re-fetch with Bot and Visitor
+      conversation = await Conversation.findByPk(conversation.id, { include: [Bot, Visitor] });
     } else {
+      // If conversation exists and visitor details are provided, update visitor
+      if (conversation.visitor_id && (vName || vEmail)) {
+        await Visitor.update(
+          {
+            ...(vName ? { name: vName } : {}),
+            ...(vEmail ? { email: vEmail } : {}),
+            last_seen: new Date()
+          },
+          { where: { id: conversation.visitor_id } }
+        );
+      }
       // If conversation exists but user logs in midway
       if (user_id && !conversation.user_id) {
         await conversation.update({ user_id });
@@ -44,9 +59,6 @@ exports.processChat = async (req, res) => {
       sender_id: user_id || conversation.visitor_id,
       content
     });
-
-    // Touch conversation to update updatedAt
-    //await conversation.update({ updatedAt: new Date() });
 
     if (conversation.status === 'active') {
       // 1. Perform RAG Search against PDFs
@@ -69,13 +81,19 @@ exports.processChat = async (req, res) => {
           content: msg.content
         }));
 
-      // 3. Generate response with context and history
+      // 3. Generate response with context, history, and optional visitor metadata
+      const visitorMetadata = {
+        name: vName || conversation.Visitor?.name,
+        email: vEmail || conversation.Visitor?.email
+      };
+
       const responseContent = await generateBotResponse(
         conversation.Bot,
         content,
         conversation.Bot.faqs || [],
         ragContext,
-        history
+        history,
+        visitorMetadata
       );
 
       const botMessage = await Message.create({
@@ -84,19 +102,10 @@ exports.processChat = async (req, res) => {
         content: responseContent
       });
 
-      // Touch conversation to update updatedAt
-      // await conversation.update({ updatedAt: new Date() });
-
       await Conversation.update(
-        { status: conversation.status }, // 👈 dummy/no-change update
+        { status: conversation.status },
         { where: { id: conversation.id } }
       );
-
-      //console.log('Bot  conversation:', conversation);
-
-      const updated = await Conversation.findByPk(conversation.id);
-      console.log("NEW updatedAt:", updated.updatedAt);
-
 
       return res.status(200).json({
         conversation_id: conversation.id,
@@ -118,6 +127,41 @@ exports.processChat = async (req, res) => {
   }
 };
 
+exports.updateVisitorSession = async (req, res) => {
+  try {
+    const { conversation_id, name, email } = req.body;
+    const vName = (name || '').trim();
+    const vEmail = (email || '').trim();
+
+    if (conversation_id) {
+      const conv = await Conversation.findByPk(conversation_id);
+      if (conv && conv.visitor_id) {
+        await Visitor.update(
+          {
+            ...(vName ? { name: vName } : {}),
+            ...(vEmail ? { email: vEmail } : {}),
+            last_seen: new Date()
+          },
+          { where: { id: conv.visitor_id } }
+        );
+        const visitor = await Visitor.findByPk(conv.visitor_id);
+        return res.json({ success: true, visitor });
+      }
+    }
+
+    const visitor = await Visitor.create({
+      name: vName || 'Guest',
+      email: vEmail || null,
+      last_page_url: req.headers.referer || null,
+      last_seen: new Date()
+    });
+
+    res.json({ success: true, visitor });
+  } catch (error) {
+    console.error('Error updating visitor session:', error);
+    res.status(500).json({ error: 'Failed to update visitor session', details: error.message });
+  }
+};
 
 exports.getConversations = async (req, res) => {
   try {
@@ -126,6 +170,7 @@ exports.getConversations = async (req, res) => {
 
     const conversations = await Conversation.findAll({
       where: { user_id, bot_id },
+      include: [{ model: Visitor, attributes: ['id', 'name', 'email', 'last_seen'] }],
       order: [['updatedAt', 'DESC']]
     });
     res.json(conversations);
@@ -143,7 +188,9 @@ exports.getConversationMessages = async (req, res) => {
       order: [['createdAt', 'ASC']]
     });
 
-    const conversation = await Conversation.findByPk(id);
+    const conversation = await Conversation.findByPk(id, {
+      include: [{ model: Visitor, attributes: ['id', 'name', 'email', 'last_seen'] }]
+    });
 
     res.json({ conversation, messages });
   } catch (error) {

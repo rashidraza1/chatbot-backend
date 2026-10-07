@@ -4,7 +4,8 @@ const OpenAI = require('openai');
 const { PdfChunk } = require('../models');
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.GEMINI_API_KEY,
+  baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/'
 });
 
 // Helper: Split text into chunks
@@ -42,7 +43,8 @@ exports.processPdf = async (pdfDoc) => {
 
       // Generate embedding using OpenAI
       const response = await openai.embeddings.create({
-        model: "text-embedding-3-small",
+        //model: "text-embedding-3-small",
+        model: 'gemini-embedding-2-preview',
         input: chunk,
       });
 
@@ -88,7 +90,8 @@ exports.searchRelevantChunks = async (botId, query, topK = 3) => {
   try {
     // 1. Embed the user's query
     const queryResponse = await openai.embeddings.create({
-      model: "text-embedding-3-small",
+      // model: "text-embedding-3-small",
+      model: 'gemini-embedding-2-preview',
       input: query,
     });
     const queryEmbedding = queryResponse.data[0].embedding;
@@ -105,7 +108,7 @@ exports.searchRelevantChunks = async (botId, query, topK = 3) => {
       let chunkEmbedding = chunk.embedding;
       // Depending on DB/Sequelize mapping, it might be a stringified JSON array
       if (typeof chunkEmbedding === 'string') {
-          chunkEmbedding = JSON.parse(chunkEmbedding);
+        chunkEmbedding = JSON.parse(chunkEmbedding);
       }
       const similarity = cosineSimilarity(queryEmbedding, chunkEmbedding);
       return {

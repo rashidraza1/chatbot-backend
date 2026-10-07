@@ -2,3 +2,15 @@
     at exports.processPdf (F:\Rashid\ReactJS\chatbot\backend\services\pdfService.js:34:24)
     at [eval]:1:139
     at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-10-07T05:28:28.177Z | PDF ID: 1 | Error: Error: 401 Incorrect API key provided: gsk_HQL8********************************************3VGD. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (F:\Rashid\ReactJS\chatbot\backend\node_modules\openai\core\error.js:48:20)
+    at OpenAI.makeStatusError (F:\Rashid\ReactJS\chatbot\backend\node_modules\openai\client.js:197:32)
+    at OpenAI.makeRequest (F:\Rashid\ReactJS\chatbot\backend\node_modules\openai\client.js:366:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async exports.processPdf (F:\Rashid\ReactJS\chatbot\backend\services\pdfService.js:44:24)
+2026-10-07T05:37:23.399Z | PDF ID: 2 | Error: Error: 401 Incorrect API key provided: gsk_HQL8********************************************3VGD. You can find your API key at https://platform.openai.com/account/api-keys.
+    at APIError.generate (F:\Rashid\ReactJS\chatbot\backend\node_modules\openai\core\error.js:48:20)
+    at OpenAI.makeStatusError (F:\Rashid\ReactJS\chatbot\backend\node_modules\openai\client.js:197:32)
+    at OpenAI.makeRequest (F:\Rashid\ReactJS\chatbot\backend\node_modules\openai\client.js:366:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async exports.processPdf (F:\Rashid\ReactJS\chatbot\backend\services\pdfService.js:44:24)
